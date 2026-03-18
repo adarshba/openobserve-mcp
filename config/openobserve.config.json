@@ -1,0 +1,49 @@
+{
+  "version": "1.0.0",
+  "instances": [
+    {
+      "id": "prod-gcp",
+      "name": "Production GCP",
+      "url": "https://periscope.breezesdk.store",
+      "auth": {
+        "type": "env",
+        "envVar": "PROD_GCP_O2_TOKEN"
+      },
+      "defaults": {
+        "org": "default",
+        "streams": ["default"],
+        "timeout": 30000,
+        "maxResults": 1000
+      },
+      "capabilities": ["logs", "traces", "metrics"],
+      "tags": ["production", "gcp"]
+    },
+    {
+      "id": "prod-aws",
+      "name": "Production AWS",
+      "url": "https://periscope.breeze.in/openobserve",
+      "auth": {
+        "type": "env",
+        "envVar": "PROD_AWS_O2_TOKEN"
+      },
+      "defaults": {
+        "org": "default",
+        "streams": ["default"],
+        "timeout": 30000,
+        "maxResults": 1000
+      },
+      "capabilities": ["logs", "traces"],
+      "tags": ["production", "aws"]
+    }
+  ],
+  "batching": {
+    "maxConcurrent": 5,
+    "maxBatchSize": 100,
+    "timeout": 60000
+  },
+  "caching": {
+    "enabled": true,
+    "ttl": 300,
+    "maxSize": 1000
+  }
+}

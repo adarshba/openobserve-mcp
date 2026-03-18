@@ -1,0 +1,181 @@
+OpenObserve MCP Server
+======================
+
+A Model Context Protocol (MCP) server for querying multiple OpenObserve
+instances. Parallel queries, batch execution, pagination, and LRU caching
+over a stdio transport.
+
+Source: https://github.com/adarshba/openobserve-mcp
+
+
+What is this?
+-------------
+
+This server exposes OpenObserve log/trace/metrics querying as MCP tools.
+An AI agent (Claude, Cursor, etc.) connects to this server over stdio and
+can call tools to fetch logs from one or many OpenObserve instances at once.
+
+
+Quick Start
+-----------
+
+  npm install
+  npm run build
+
+  export PROD_GCP_O2_TOKEN=$(echo -n "user@example.com:password" | base64)
+  node dist/index.js --config ./config/openobserve.config.json
+
+
+Configuration
+-------------
+
+Edit config/openobserve.config.json. Each instance entry requires:
+
+  id         - unique identifier used to reference the instance in tool calls
+  name       - human-readable label
+  url        - base URL of the OpenObserve instance
+  auth       - references an environment variable holding a Base64 token
+  defaults   - org, timeout, maxResults
+  capabilities - which of: logs, traces, metrics
+  tags       - arbitrary labels for filtering (e.g. production, staging, gcp)
+
+Top-level options:
+
+  batching.maxBatchSize   - max queries per parallel batch (default: 100)
+  batching.maxConcurrent  - max concurrent instance connections (default: 5)
+  caching.enabled         - enable LRU query cache (default: true)
+  caching.ttl             - cache TTL in seconds (default: 300)
+  caching.maxSize         - max cached entries (default: 1000)
+
+
+Auth Token
+----------
+
+Each instance authenticates with a Base64-encoded "username:password" string
+passed via environment variable. Never put credentials directly in the config.
+
+  export PROD_GCP_O2_TOKEN=$(echo -n "admin@example.com:secretpass" | base64)
+
+For API key auth:
+
+  export PROD_GCP_O2_TOKEN=$(echo -n "api_key_id:api_key_secret" | base64)
+
+The config references the env var name:
+
+  "auth": { "type": "env", "envVar": "PROD_GCP_O2_TOKEN" }
+
+
+MCP Client Setup
+----------------
+
+Add to your MCP client config (Claude Desktop, Cursor, etc.):
+
+  {
+    "mcpServers": {
+      "openobserve": {
+        "command": "node",
+        "args": [
+          "/path/to/openobserve_mcp/dist/index.js",
+          "--config",
+          "/path/to/config.json"
+        ],
+        "env": {
+          "PROD_GCP_O2_TOKEN": "your_base64_token",
+          "PROD_AWS_O2_TOKEN": "your_base64_token"
+        }
+      }
+    }
+  }
+
+Config path can also be set via environment variable:
+
+  O2_MCP_CONFIG_PATH=./config/openobserve.config.json node dist/index.js
+
+
+Tools
+-----
+
+o2_search_logs
+  Search logs with SQL across one or more instances. Queries run in parallel.
+  Results include instance attribution and a pagination cursor if more data
+  exists.
+
+  instances    (required) array of instance IDs to query
+  sql          (required) SQL query string
+  startTime    (required) ISO 8601 or Unix ms timestamp
+  endTime      (required) ISO 8601 or Unix ms timestamp
+  limit        results per instance, default 100
+  cursor       pagination cursor from a previous response
+  bypassCache  skip cache and fetch fresh data
+
+o2_batch_query
+  Execute multiple independent queries in parallel, chunked by maxBatchSize.
+  Each query targets a specific instance. Partial failures are isolated --
+  a failed query does not block others.
+
+  queries[].instanceId   (required) target instance ID
+  queries[].sql          (required) SQL query
+  queries[].startTime    (required) start time
+  queries[].endTime      (required) end time
+  queries[].limit        result limit, default 100
+
+o2_list_instances
+  List all configured instances. Optionally filter by tag or capability.
+
+  tags         filter by any matching tag
+  capability   filter by capability: logs, traces, or metrics
+
+o2_list_streams
+  List available streams/indexes from one or more instances in parallel.
+
+  instances    (required) array of instance IDs to query
+
+
+SQL Reference
+-------------
+
+OpenObserve uses a PostgreSQL-compatible SQL dialect.
+
+  _timestamp         built-in time field (microseconds); always present
+  match_all('x')     full-text search across all fields
+  str_match(f, 'x')  text match on a specific field
+  histogram(_timestamp, '5 minute')  time-bucketed aggregation
+
+Time range is always enforced via startTime/endTime. Always provide both.
+
+Examples:
+
+  SELECT * FROM default WHERE level = 'error' ORDER BY _timestamp DESC
+
+  SELECT * FROM default WHERE match_all('payment failed')
+
+  SELECT service, COUNT(*) AS errors
+  FROM default WHERE level = 'error'
+  GROUP BY service ORDER BY errors DESC
+
+  SELECT histogram(_timestamp, '5 minute') AS bucket, COUNT(*) AS count
+  FROM default GROUP BY bucket ORDER BY bucket
+
+
+Project Layout
+--------------
+
+  src/index.ts              entry point, CLI arg parsing, stdio transport
+  src/server.ts             MCP server, tool registration, request routing
+  src/cache.ts              LRU cache with TTL and hash-based keys
+  src/types.ts              shared type definitions
+  src/config/schema.ts      Zod schema for config validation
+  src/config/loader.ts      config loader, env var resolution
+  src/client/instance.ts    HTTP client for a single OpenObserve instance
+  src/client/pool.ts        manages the set of all configured instances
+  src/tools/search-logs.ts  o2_search_logs implementation
+  src/tools/batch-query.ts  o2_batch_query implementation
+  src/tools/list-instances.ts  o2_list_instances implementation
+  src/tools/list-streams.ts    o2_list_streams implementation
+  src/utils/schema.ts       Zod to JSON Schema conversion
+
+
+License
+-------
+
+MIT
