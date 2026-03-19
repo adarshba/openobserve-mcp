@@ -43,8 +43,6 @@ export const ServerConfigSchema = z.object({
   caching: CachingConfigSchema.default({}),
 });
 
-export type AuthConfig = z.infer<typeof AuthConfigSchema>;
-export type InstanceDefaults = z.infer<typeof InstanceDefaultsSchema>;
 export type InstanceConfig = z.infer<typeof InstanceConfigSchema>;
 export type BatchingConfig = z.infer<typeof BatchingConfigSchema>;
 export type CachingConfig = z.infer<typeof CachingConfigSchema>;

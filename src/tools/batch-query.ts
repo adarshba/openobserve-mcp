@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { InstancePool } from "../client/pool.js";
 import type { BatchingConfig } from "../config/schema.js";
-import type { BatchQueryItem, BatchQueryResult } from "../types.js";
+import type { BatchQueryResult } from "../types.js";
+import { parseTime } from "../utils/time.js";
 
 export const BatchQueryInputSchema = z.object({
   queries: z
@@ -20,15 +21,44 @@ export const BatchQueryInputSchema = z.object({
 
 export type BatchQueryInput = z.infer<typeof BatchQueryInputSchema>;
 
-function parseTime(value: string): number {
-  const num = Number(value);
-  if (!isNaN(num)) return num;
-  return new Date(value).getTime();
+function makeSemaphore(max: number) {
+  let active = 0;
+  const queue: Array<() => void> = [];
+
+  function release() {
+    active--;
+    if (queue.length > 0) {
+      active++;
+      queue.shift()!();
+    }
+  }
+
+  return async function acquire<T>(fn: () => Promise<T>): Promise<T> {
+    if (active < max) {
+      active++;
+      try {
+        return await fn();
+      } finally {
+        release();
+      }
+    }
+    return new Promise<T>((resolve, reject) => {
+      queue.push(async () => {
+        try {
+          resolve(await fn());
+        } catch (err) {
+          reject(err);
+        } finally {
+          release();
+        }
+      });
+    });
+  };
 }
 
 async function executeQuery(
   pool: InstancePool,
-  query: BatchQueryItem,
+  query: BatchQueryInput["queries"][number],
   index: number,
 ): Promise<BatchQueryResult> {
   const instance = pool.getById(query.instanceId);
@@ -59,37 +89,25 @@ async function executeQuery(
   }
 }
 
-export function createBatchQueryHandler(
-  pool: InstancePool,
-  config: BatchingConfig,
-) {
-  return async (
-    input: BatchQueryInput,
-  ): Promise<{ results: BatchQueryResult[] }> => {
-    const { queries } = input;
-    const batchSize = config.maxBatchSize;
-    const results: BatchQueryResult[] = [];
+export function createBatchQueryHandler(pool: InstancePool, config: BatchingConfig) {
+  const acquire = makeSemaphore(config.maxConcurrent);
 
-    for (let i = 0; i < queries.length; i += batchSize) {
-      const batch = queries.slice(i, i + batchSize);
-      const batchPromises = batch.map((q: BatchQueryItem, idx: number) =>
-        executeQuery(pool, q, i + idx),
-      );
-      const batchResults = await Promise.allSettled(batchPromises);
+  return async (input: BatchQueryInput): Promise<{ results: BatchQueryResult[] }> => {
+    const promises = input.queries.map((query, index) =>
+      acquire(() => executeQuery(pool, query, index)),
+    );
 
-      for (const result of batchResults) {
-        if (result.status === "fulfilled") {
-          results.push(result.value);
-        } else {
-          results.push({
-            index: -1,
+    const settled = await Promise.allSettled(promises);
+    const results: BatchQueryResult[] = settled.map((s, index) =>
+      s.status === "fulfilled"
+        ? s.value
+        : {
+            index,
             instanceId: "unknown",
             success: false,
-            error: String(result.reason),
-          });
-        }
-      }
-    }
+            error: String(s.reason),
+          },
+    );
 
     return { results };
   };

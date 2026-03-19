@@ -1,21 +1,21 @@
-export interface LogQuery {
+export type LogQuery = {
   sql: string;
   startTime: number;
   endTime: number;
   from?: number;
   size?: number;
-}
+};
 
-export interface QueryResult {
+export type QueryResult = {
   took: number;
   hits: Record<string, unknown>[];
   total: number;
   from: number;
   size: number;
   scanSize: number;
-}
+};
 
-export interface StreamInfo {
+export type StreamInfo = {
   name: string;
   streamType: string;
   storageType: string;
@@ -23,39 +23,17 @@ export interface StreamInfo {
     docNum: number;
     storageSize: number;
   };
-}
+};
 
-export interface InstanceQueryResult {
-  instanceId: string;
-  instanceName: string;
-  success: boolean;
-  data?: QueryResult;
-  error?: string;
-}
-
-export interface PaginationCursor {
+export type PaginationCursor = {
   instanceOffsets: Record<string, number>;
   limit: number;
-}
+};
 
-export interface SearchLogsResult {
-  results: InstanceQueryResult[];
-  cursor?: string;
-  hasMore: boolean;
-}
-
-export interface BatchQueryItem {
-  instanceId: string;
-  sql: string;
-  startTime: string;
-  endTime: string;
-  limit?: number;
-}
-
-export interface BatchQueryResult {
+export type BatchQueryResult = {
   index: number;
   instanceId: string;
   success: boolean;
   data?: QueryResult;
   error?: string;
-}
+};
