@@ -34,10 +34,12 @@
   },
   "keywords": [
     "mcp",
+    "model-context-protocol",
     "openobserve",
     "observability",
     "logs",
-    "traces"
+    "traces",
+    "metrics"
   ],
   "author": "Adarsh BA",
   "license": "MIT",

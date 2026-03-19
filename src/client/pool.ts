@@ -35,30 +35,4 @@ export class InstancePool {
   getAll(): O2Instance[] {
     return Array.from(this.instances.values());
   }
-
-  getMetadata(): Array<{
-    id: string;
-    name: string;
-    url: string;
-    capabilities: string[];
-    tags: string[];
-  }> {
-    return this.getAll().map((inst) => ({
-      id: inst.id,
-      name: inst.name,
-      url: inst.url,
-      capabilities: inst.capabilities,
-      tags: inst.tags,
-    }));
-  }
-
-  async healthCheckAll(): Promise<Map<string, boolean>> {
-    const results = new Map<string, boolean>();
-    const checks = this.getAll().map(async (inst) => {
-      const healthy = await inst.healthCheck();
-      results.set(inst.id, healthy);
-    });
-    await Promise.allSettled(checks);
-    return results;
-  }
 }

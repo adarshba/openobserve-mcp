@@ -68,14 +68,14 @@ The config references the env var name:
 MCP Client Setup
 ----------------
 
-Add to your MCP client config (Claude Desktop, Cursor, etc.):
+Add to your MCP client config (Claude Desktop, Cursor, OpenCode, Claude Code CLI, etc.):
 
   {
     "mcpServers": {
       "openobserve": {
-        "command": "node",
+        "command": "npx",
         "args": [
-          "/path/to/openobserve_mcp/dist/index.js",
+          "openobserve-mcp",
           "--config",
           "/path/to/config.json"
         ],
@@ -89,7 +89,7 @@ Add to your MCP client config (Claude Desktop, Cursor, etc.):
 
 Config path can also be set via environment variable:
 
-  O2_MCP_CONFIG_PATH=./config/openobserve.config.json node dist/index.js
+  O2_MCP_CONFIG_PATH=./config/openobserve.config.json npx openobserve-mcp
 
 
 Tools
@@ -160,19 +160,26 @@ Examples:
 Project Layout
 --------------
 
-  src/index.ts              entry point, CLI arg parsing, stdio transport
-  src/server.ts             MCP server, tool registration, request routing
-  src/cache.ts              LRU cache with TTL and hash-based keys
-  src/types.ts              shared type definitions
-  src/config/schema.ts      Zod schema for config validation
-  src/config/loader.ts      config loader, env var resolution
-  src/client/instance.ts    HTTP client for a single OpenObserve instance
-  src/client/pool.ts        manages the set of all configured instances
-  src/tools/search-logs.ts  o2_search_logs implementation
-  src/tools/batch-query.ts  o2_batch_query implementation
-  src/tools/list-instances.ts  o2_list_instances implementation
-  src/tools/list-streams.ts    o2_list_streams implementation
-  src/utils/schema.ts       Zod to JSON Schema conversion
+  src/index.ts                     entry point, CLI arg parsing, stdio transport
+  src/server.ts                    MCP server, tool registration, request routing
+  src/cache.ts                     LRU cache with TTL and hash-based keys
+  src/types.ts                     shared type definitions
+  src/config/schema.ts             Zod schema for config validation
+  src/config/loader.ts             config loader, env var resolution
+  src/client/instance.ts           HTTP client for a single OpenObserve instance
+  src/client/pool.ts               manages the set of all configured instances
+  src/query/types.ts               query result and strategy type definitions
+  src/query/analyzer.ts            SQL intent detection (aggregates, GROUP BY, errors)
+  src/query/rewriter.ts            rewrites SELECT * to histogram aggregation SQL
+  src/query/sampler.ts             reservoir sampling (recent, diverse, errors modes)
+  src/query/router.ts              selects strategy based on time range and SQL intent
+  src/query/strategies/aggregate.ts  aggregate strategy: time-bucketed counts + drill-down
+  src/query/strategies/sample.ts     sample strategy: reservoir-sampled rows
+  src/query/strategies/raw.ts        raw strategy: passthrough capped at 200 rows
+  src/tools/search-logs.ts         o2_search_logs implementation
+  src/tools/batch-query.ts         o2_batch_query implementation
+  src/tools/list-instances.ts      o2_list_instances implementation
+  src/tools/list-streams.ts        o2_list_streams implementation
 
 
 License

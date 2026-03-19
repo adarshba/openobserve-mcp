@@ -1,4 +1,5 @@
 import type { ResolvedInstance } from "../config/loader.js";
+import { QueryResponseSchema, StreamsResponseSchema } from "../schemas.js";
 import type { LogQuery, QueryResult, StreamInfo } from "../types.js";
 
 export class O2Instance {
@@ -50,14 +51,14 @@ export class O2Instance {
       throw new Error(`HTTP ${response.status}: ${text}`);
     }
 
-    const data = await response.json();
+    const parsed = QueryResponseSchema.parse(await response.json());
     return {
-      took: data.took,
-      hits: data.hits ?? [],
-      total: data.total ?? 0,
-      from: data.from ?? 0,
-      size: data.size ?? 0,
-      scanSize: data.scan_size ?? 0,
+      took: parsed.took,
+      hits: parsed.hits,
+      total: parsed.total,
+      from: parsed.from,
+      size: parsed.size,
+      scanSize: parsed.scan_size,
     };
   }
 
@@ -77,19 +78,16 @@ export class O2Instance {
       throw new Error(`HTTP ${response.status}: ${text}`);
     }
 
-    const data = await response.json();
-    return (data.list ?? []).map((s: Record<string, unknown>) => {
-      const stats = s.stats as Record<string, unknown> | undefined;
-      return {
-        name: s.name as string,
-        streamType: s.stream_type as string,
-        storageType: s.storage_type as string,
-        stats: {
-          docNum: (stats?.doc_num as number) ?? 0,
-          storageSize: (stats?.storage_size as number) ?? 0,
-        },
-      };
-    });
+    const parsed = StreamsResponseSchema.parse(await response.json());
+    return parsed.list.map((s) => ({
+      name: s.name,
+      streamType: s.stream_type,
+      storageType: s.storage_type,
+      stats: {
+        docNum: s.stats?.doc_num ?? 0,
+        storageSize: s.stats?.storage_size ?? 0,
+      },
+    }));
   }
 
   async healthCheck(): Promise<boolean> {
