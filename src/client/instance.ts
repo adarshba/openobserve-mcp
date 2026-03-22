@@ -1,5 +1,5 @@
 import type { ResolvedInstance } from "../config/loader.js";
-import { QueryResponseSchema, StreamsResponseSchema } from "../schemas.js";
+import { QueryResponseSchema, StreamSchemaResponseSchema, StreamsResponseSchema } from "../schemas.js";
 import type { LogQuery, QueryResult, StreamInfo } from "../types.js";
 
 export class O2Instance {
@@ -88,6 +88,27 @@ export class O2Instance {
         storageSize: s.stats?.storage_size ?? 0,
       },
     }));
+  }
+
+  async getStreamFields(stream: string, org?: string): Promise<string[]> {
+    const endpoint = `${this.url}/api/${org ?? this.defaultOrg}/streams/${encodeURIComponent(stream)}/schema`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "GET",
+        headers: {
+          Authorization: `Basic ${this.authToken}`,
+        },
+        signal: AbortSignal.timeout(this.defaultTimeout),
+      });
+
+      if (!response.ok) return [];
+
+      const parsed = StreamSchemaResponseSchema.parse(await response.json());
+      return parsed.schema.map((f) => f.name);
+    } catch {
+      return [];
+    }
   }
 
   async healthCheck(): Promise<boolean> {

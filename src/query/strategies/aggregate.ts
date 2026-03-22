@@ -12,7 +12,7 @@ export async function runAggregateStrategy(
   granularity: Granularity,
 ): Promise<InstanceQueryResult> {
   const start = Date.now();
-  const aggregateSql = rewriteToAggregate(sql, granularity);
+  const aggregateSql = await rewriteToAggregate(sql, granularity, instance);
 
   try {
     const data = await instance.queryLogs({

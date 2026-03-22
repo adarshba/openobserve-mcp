@@ -1,6 +1,6 @@
 {
   "name": "openobserve-mcp",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MCP for OpenObserve with multi-instance support, batching, and parallel queries",
   "type": "module",
   "main": "./dist/index.js",
@@ -41,7 +41,7 @@
     "traces",
     "metrics"
   ],
-  "author": "Adarsh BA",
+  "author": "Adarsh B A",
   "license": "MIT",
   "repository": {
     "type": "git",

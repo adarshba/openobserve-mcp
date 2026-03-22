@@ -24,3 +24,7 @@ export const StreamItemSchema = z.object({
 export const StreamsResponseSchema = z.object({
   list: z.array(StreamItemSchema).default([]),
 });
+
+export const StreamSchemaResponseSchema = z.object({
+  schema: z.array(z.object({ name: z.string(), type: z.string() })).default([]),
+});
