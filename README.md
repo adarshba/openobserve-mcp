@@ -69,6 +69,26 @@ export PROD_GCP_O2_TOKEN=$(echo -n "user@example.com:password" | base64)
 }
 ```
 
+4. Example MCP server configuration for OpenCode CLI:
+
+```json
+{
+  "openobserve": {
+    "type": "local",
+    "command": [
+      "npx",
+      "openobserve-mcp",
+      "--config",
+      "/Users/adarsh.ba/breeze/openobserve_mcp/config/openobserve.config.json"
+    ],
+    "environment": {
+      "PROD_GCP_O2_TOKEN": "your_base64_token",
+      "PROD_AWS_O2_TOKEN": "your_base64_token"
+    },
+    "enabled": true
+  }
+}
+
 ## Available Tools
 
 - `o2_search_logs` - Search logs with SQL across instances
