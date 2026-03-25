@@ -1,6 +1,6 @@
 {
   "name": "openobserve-mcp",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "MCP for OpenObserve with multi-instance support, batching, and parallel queries",
   "type": "module",
   "main": "./dist/index.js",
