@@ -88,6 +88,7 @@ export PROD_GCP_O2_TOKEN=$(echo -n "user@example.com:password" | base64)
     "enabled": true
   }
 }
+```
 
 ## Available Tools
 
