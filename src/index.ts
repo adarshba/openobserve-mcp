@@ -3,6 +3,7 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadConfig, loadConfigFromString } from "./config/loader.js";
 import { createServer } from "./server.js";
+import { shutdownTracing } from "./tracing.js";
 
 const PROGRAM_NAME = "openobserve-mcp";
 
@@ -36,4 +37,14 @@ async function main(): Promise<void> {
 main().catch((err) => {
   console.error(`[${PROGRAM_NAME}] Fatal error:`, err);
   process.exit(1);
+});
+
+process.on("SIGINT", async () => {
+  await shutdownTracing();
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  await shutdownTracing();
+  process.exit(0);
 });

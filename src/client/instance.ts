@@ -1,6 +1,6 @@
 import type { ResolvedInstance } from "../config/loader.js";
 import { QueryResponseSchema, StreamSchemaResponseSchema, StreamsResponseSchema } from "../schemas.js";
-import type { LogQuery, QueryResult, StreamInfo } from "../types.js";
+import type { LogQuery, QueryResult, StreamFieldInfo, StreamInfo } from "../types.js";
 
 export class O2Instance {
   readonly id: string;
@@ -90,22 +90,30 @@ export class O2Instance {
     }));
   }
 
-  async getStreamFields(stream: string, org?: string): Promise<string[]> {
+  async getStreamSchema(stream: string, org?: string): Promise<StreamFieldInfo[]> {
     const endpoint = `${this.url}/api/${org ?? this.defaultOrg}/streams/${encodeURIComponent(stream)}/schema`;
 
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${this.authToken}`,
+      },
+      signal: AbortSignal.timeout(this.defaultTimeout),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`HTTP ${response.status}: ${text}`);
+    }
+
+    const parsed = StreamSchemaResponseSchema.parse(await response.json());
+    return parsed.schema.map((f) => ({ name: f.name, type: f.type }));
+  }
+
+  async getStreamFields(stream: string, org?: string): Promise<string[]> {
     try {
-      const response = await fetch(endpoint, {
-        method: "GET",
-        headers: {
-          Authorization: `Basic ${this.authToken}`,
-        },
-        signal: AbortSignal.timeout(this.defaultTimeout),
-      });
-
-      if (!response.ok) return [];
-
-      const parsed = StreamSchemaResponseSchema.parse(await response.json());
-      return parsed.schema.map((f) => f.name);
+      const schema = await this.getStreamSchema(stream, org);
+      return schema.map((f) => f.name);
     } catch {
       return [];
     }
