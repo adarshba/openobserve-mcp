@@ -15,6 +15,11 @@ export type QueryResult = {
   scanSize: number;
 };
 
+export type StreamFieldInfo = {
+  name: string;
+  type: string;
+};
+
 export type StreamInfo = {
   name: string;
   streamType: string;
