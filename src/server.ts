@@ -43,15 +43,13 @@ export function createServer(config: ResolvedConfig): McpServer {
   server.registerTool(
     "o2_search_logs",
     {
-      description:
-        "Search logs across OpenObserve instances with SQL. Automatically selects the best strategy (timeline aggregation, sampling, or raw) based on time range. For ranges >6h returns a time-bucketed summary with drill-down options. " +
-        "SQL supports: =, !=, >, <, >=, <=, IS NULL, IS NOT NULL, AND, OR, NOT, COUNT, SUM, AVG, MIN, MAX, GROUP BY, ORDER BY, histogram(_timestamp). String values use single quotes. Double-quote stream names. " +
-        "Search functions for WHERE clause: " +
-        "match_all('text') — full-text search across indexed fields (case-insensitive, supports wildcards *), best for broad keyword searches on streams with many fields; " +
-        "Use o2_get_stream_schema to discover field names before querying specific fields. " +
-        'Examples: ' +
-        'SELECT * FROM "stream" WHERE match_all(\'timeout*\') | ' +
-        'SELECT * FROM "stream" WHERE code = 500 | ',
+      description: [
+        "Search logs across OpenObserve instances with SQL. Automatically selects the best strategy (timeline aggregation, sampling, or raw) based on time range. For ranges >6h returns a time-bucketed summary with drill-down options.",
+        "SQL supports: =, !=, >, <, >=, <=, IS NULL, IS NOT NULL, AND, OR, NOT, COUNT, SUM, AVG, MIN, MAX, GROUP BY, ORDER BY, histogram(_timestamp). String values use single quotes. Double-quote stream names.",
+        "Search functions for WHERE clause: match_all('text') — full-text search across indexed fields (case-insensitive, supports wildcards *), best for broad keyword searches on streams with many fields.",
+        "Use o2_get_stream_schema to discover field names before querying specific fields.",
+        `Examples: SELECT * FROM "stream" WHERE match_all('timeout*') | SELECT * FROM "stream" WHERE code = 500`,
+      ].join(" "),
       inputSchema: SearchLogsInputSchema.shape,
     },
     async (args) => {
