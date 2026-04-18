@@ -2,7 +2,8 @@ name: Publish to NPM
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: ["package.json"]
   workflow_dispatch:
 
 concurrency:
@@ -18,18 +19,37 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check version changed
+        id: version_check
+        run: |
+          prev=$(git show HEAD~1:package.json | node -pe "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" 2>/dev/null || echo "none")
+          curr=$(node -pe "require('./package.json').version")
+          echo "prev=$prev curr=$curr"
+          if [ "$prev" = "$curr" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-node@v4
+        if: steps.version_check.outputs.changed == 'true'
         with:
           node-version: "lts/*"
           registry-url: "https://registry.npmjs.org"
 
       - run: npm ci
+        if: steps.version_check.outputs.changed == 'true'
 
       - run: npm run typecheck
+        if: steps.version_check.outputs.changed == 'true'
 
       - run: npm run build
+        if: steps.version_check.outputs.changed == 'true'
 
       - run: npm publish --provenance --access public
+        if: steps.version_check.outputs.changed == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
