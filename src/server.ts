@@ -31,7 +31,6 @@ export function createServer(config: ResolvedConfig): McpServer {
   const pool = new InstancePool(config.instances);
   const cache = new QueryCache<SearchLogsResult>(config.caching);
 
-  // Initialize Langfuse tracing (no-op when disabled)
   initTracing();
 
   const searchLogs = withTracing("o2_search_logs", createSearchLogsHandler(pool, cache));

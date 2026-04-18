@@ -39,12 +39,10 @@ main().catch((err) => {
   process.exit(1);
 });
 
-process.on("SIGINT", async () => {
+const shutdown = async (): Promise<void> => {
   await shutdownTracing();
   process.exit(0);
-});
+};
 
-process.on("SIGTERM", async () => {
-  await shutdownTracing();
-  process.exit(0);
-});
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
