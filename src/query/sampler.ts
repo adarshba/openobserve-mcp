@@ -1,5 +1,12 @@
-import type { LogEntry, SampleStrategy } from "./types.js";
+import type { LogEntry, SampleStrategy } from "$types";
 
+/**
+ * Select a representative sample of log entries using the specified strategy.
+ * @param logs - Full array of log entries to sample from.
+ * @param k - Maximum number of entries to include in the sample.
+ * @param strategy - Sampling algorithm: `"recent"`, `"errors"`, or `"diverse"`.
+ * @returns An object with the sampled entries and a diversity score between 0 and 1.
+ */
 export function reservoirSample(
   logs: LogEntry[],
   k: number,

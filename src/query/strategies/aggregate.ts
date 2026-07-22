@@ -1,9 +1,18 @@
 import type { O2Instance } from "../../client/instance.js";
 import { rewriteToAggregate } from "../rewriter.js";
-import type { Granularity, InstanceQueryResult, TimeBucket } from "../types.js";
+import type { Granularity, InstanceQueryResult, TimeBucket } from "$types";
 
 const BUCKET_LIMIT = 500;
 
+/**
+ * Execute a time-bucketed aggregate query against an OpenObserve instance.
+ * @param instance - Target instance to query.
+ * @param sql - Original SQL string to rewrite into an aggregate form.
+ * @param startTime - Query start time in milliseconds since epoch.
+ * @param endTime - Query end time in milliseconds since epoch.
+ * @param granularity - Histogram bucket size: `"hour"` or `"day"`.
+ * @returns An `InstanceQueryResult` with a timeline view on success, or an error description on failure.
+ */
 export async function runAggregateStrategy(
   instance: O2Instance,
   sql: string,

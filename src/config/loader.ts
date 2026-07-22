@@ -1,21 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
-import { ServerConfigSchema, type ServerConfig } from "./schema.js";
-import type {
-  ConfigResolutionResult,
-  OptionalAuthToken,
-  ResolvedInstance,
-} from "./types.js";
+import { ServerConfigSchema } from "./schema.js";
+import type { ConfigResolutionResult, OptionalAuthToken, ResolvedInstance } from "$types";
 
-export type {
-  ConfigResolutionResult,
-  OptionalAuthToken,
-  ResolvedConfig,
-  ResolvedInstance,
-} from "./types.js";
-
-export function loadConfigFromString(
-  configString: string,
-): ConfigResolutionResult {
+/**
+ * Parse and validate a JSON configuration string, resolving auth tokens from environment variables.
+ * @param configString - Raw JSON string conforming to the server configuration schema.
+ * @returns Resolved configuration and any non-fatal warnings.
+ * @throws When the JSON is malformed, fails schema validation, or no instances resolve successfully.
+ */
+export function loadConfigFromString(configString: string): ConfigResolutionResult {
   let parsed: unknown;
   try {
     parsed = JSON.parse(configString);
@@ -34,7 +27,7 @@ function resolveAuthToken(envVar: string): OptionalAuthToken {
   return value && value.trim().length > 0 ? value : undefined;
 }
 
-function resolveInstances(serverConfig: ServerConfig): ConfigResolutionResult {
+function resolveInstances(serverConfig: ReturnType<typeof ServerConfigSchema.parse>): ConfigResolutionResult {
   const warnings: string[] = [];
 
   const instances = serverConfig.instances.reduce<ResolvedInstance[]>(
@@ -73,6 +66,12 @@ function resolveInstances(serverConfig: ServerConfig): ConfigResolutionResult {
   };
 }
 
+/**
+ * Read a configuration file from disk and resolve it via `loadConfigFromString`.
+ * @param configPath - Absolute or relative path to the JSON configuration file.
+ * @returns Resolved configuration and any non-fatal warnings.
+ * @throws When the file does not exist, cannot be read, or fails validation.
+ */
 export function loadConfig(configPath: string): ConfigResolutionResult {
   if (!existsSync(configPath)) {
     throw new Error(`Configuration file not found: ${configPath}`);

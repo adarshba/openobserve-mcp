@@ -11,12 +11,12 @@
       },
       "defaults": {
         "org": "default",
-        "streams": ["default"],
-        "timeout": 30000,
+        "streams": ["default_v2", "curator", "vayu_v2"],
+        "timeout": 60000,
         "maxResults": 1000
       },
       "capabilities": ["logs", "traces", "metrics"],
-      "tags": ["production", "gcp"]
+      "tags": ["production", "gcp", "tara", "curator", "vayu"]
     },
     {
       "id": "prod-aws",
@@ -28,18 +28,63 @@
       },
       "defaults": {
         "org": "default",
-        "streams": ["default"],
-        "timeout": 30000,
+        "streams": [
+          "default_v2",
+          "curator",
+          "vayu_v2",
+          "lighthouse",
+          "nimble",
+          "atoms",
+          "automatic"
+        ],
+        "timeout": 60000,
         "maxResults": 1000
       },
       "capabilities": ["logs", "traces", "metrics"],
-      "tags": ["production", "aws"]
+      "tags": [
+        "production",
+        "aws",
+        "tara",
+        "curator",
+        "neurolink",
+        "vayu",
+        "lighthouse",
+        "nimble",
+        "atoms",
+        "automatic"
+      ]
+    },
+    {
+      "id": "beta-aws",
+      "name": "Beta AWS",
+      "url": "https://periscope.beta.breeze.in/openobserve",
+      "auth": {
+        "type": "env",
+        "envVar": "BETA_AWS_O2_TOKEN"
+      },
+      "defaults": {
+        "org": "default",
+        "streams": ["default_v2", "curator", "vayu_v2", "lighthouse", "vinci"],
+        "timeout": 60000,
+        "maxResults": 1000
+      },
+      "capabilities": ["logs", "traces", "metrics"],
+      "tags": [
+        "beta",
+        "aws",
+        "tara",
+        "curator",
+        "neurolink",
+        "vayu",
+        "lighthouse",
+        "vinci"
+      ]
     }
   ],
   "batching": {
     "maxConcurrent": 5,
     "maxBatchSize": 100,
-    "timeout": 60000
+    "timeout": 120000
   },
   "caching": {
     "enabled": true,

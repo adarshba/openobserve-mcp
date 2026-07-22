@@ -1,25 +1,8 @@
-import { z } from "zod";
+import type { z } from "zod";
 import type { InstancePool } from "../client/pool.js";
-import type { BatchingConfig } from "../config/schema.js";
-import type { BatchQueryResult } from "../types.js";
+import type { BatchingConfig, BatchQueryResult } from "$types";
+import { BatchQueryInputSchema } from "$schema";
 import { parseTime } from "../utils/time.js";
-
-export const BatchQueryInputSchema = z.object({
-  queries: z
-    .array(
-      z.object({
-        instanceId: z.string(),
-        sql: z.string(),
-        startTime: z.string(),
-        endTime: z.string(),
-        limit: z.number().optional().default(100),
-      }),
-    )
-    .min(1)
-    .describe("Array of queries to execute"),
-});
-
-export type BatchQueryInput = z.infer<typeof BatchQueryInputSchema>;
 
 function makeSemaphore(max: number) {
   let active = 0;
@@ -58,17 +41,12 @@ function makeSemaphore(max: number) {
 
 async function executeQuery(
   pool: InstancePool,
-  query: BatchQueryInput["queries"][number],
+  query: z.infer<typeof BatchQueryInputSchema>["queries"][number],
   index: number,
 ): Promise<BatchQueryResult> {
   const instance = pool.getById(query.instanceId);
   if (!instance) {
-    return {
-      index,
-      instanceId: query.instanceId,
-      success: false,
-      error: `Instance ${query.instanceId} not found`,
-    };
+    return { index, instanceId: query.instanceId, success: false, error: `Instance ${query.instanceId} not found` };
   }
 
   try {
@@ -80,19 +58,20 @@ async function executeQuery(
     });
     return { index, instanceId: query.instanceId, success: true, data };
   } catch (err) {
-    return {
-      index,
-      instanceId: query.instanceId,
-      success: false,
-      error: String(err),
-    };
+    return { index, instanceId: query.instanceId, success: false, error: String(err) };
   }
 }
 
+/**
+ * Create a handler that executes multiple log queries in parallel with concurrency limiting.
+ * @param pool - Instance pool used to resolve query targets by ID.
+ * @param config - Batching configuration controlling maximum concurrent queries.
+ * @returns An async handler that accepts a batch query input and returns all results.
+ */
 export function createBatchQueryHandler(pool: InstancePool, config: BatchingConfig) {
   const acquire = makeSemaphore(config.maxConcurrent);
 
-  return async (input: BatchQueryInput): Promise<{ results: BatchQueryResult[] }> => {
+  return async (input: z.infer<typeof BatchQueryInputSchema>): Promise<{ results: BatchQueryResult[] }> => {
     const promises = input.queries.map((query, index) =>
       acquire(() => executeQuery(pool, query, index)),
     );
@@ -101,12 +80,7 @@ export function createBatchQueryHandler(pool: InstancePool, config: BatchingConf
     const results: BatchQueryResult[] = settled.map((s, index) =>
       s.status === "fulfilled"
         ? s.value
-        : {
-            index,
-            instanceId: "unknown",
-            success: false,
-            error: String(s.reason),
-          },
+        : { index, instanceId: "unknown", success: false, error: String(s.reason) },
     );
 
     return { results };

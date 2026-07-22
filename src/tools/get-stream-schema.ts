@@ -1,36 +1,27 @@
-import { z } from "zod";
+import type { z } from "zod";
 import type { InstancePool } from "../client/pool.js";
-import type { StreamFieldInfo } from "../types.js";
+import type { QueryCache } from "../cache.js";
+import type { StreamSchemaEntry, GetStreamSchemaResult } from "$types";
+import { GetStreamSchemaInputSchema } from "$schema";
 
-export const GetStreamSchemaInputSchema = z.object({
-  instance: z.string().describe("Instance ID to query"),
-  streams: z
-    .union([z.string(), z.array(z.string()).min(1)])
-    .describe("Stream name or array of stream names to get schemas for"),
-});
-
-export type GetStreamSchemaInput = z.infer<typeof GetStreamSchemaInputSchema>;
-
-interface StreamSchemaEntry {
-  stream: string;
-  success: boolean;
-  schema?: StreamFieldInfo[];
-  error?: string;
-}
-
-interface GetStreamSchemaResult {
-  instanceId: string;
-  instanceName: string;
-  schemas: StreamSchemaEntry[];
-}
-
-export function createGetStreamSchemaHandler(pool: InstancePool) {
-  return async (input: GetStreamSchemaInput): Promise<GetStreamSchemaResult> => {
+/**
+ * Create a handler that retrieves field schemas for one or more streams, with caching.
+ * @param pool - Instance pool used to resolve the target instance by ID.
+ * @param cache - Cache for storing and retrieving `GetStreamSchemaResult` objects.
+ * @returns An async handler that accepts a get-stream-schema input and returns the schema results.
+ * @throws When the specified instance ID is not found in the pool.
+ */
+export function createGetStreamSchemaHandler(pool: InstancePool, cache: QueryCache<GetStreamSchemaResult>) {
+  return async (input: z.infer<typeof GetStreamSchemaInputSchema>): Promise<GetStreamSchemaResult> => {
     const [inst] = pool.getByIds([input.instance]);
     if (!inst) {
       throw new Error(`Instance "${input.instance}" not found`);
     }
     const streamNames = Array.isArray(input.streams) ? input.streams : [input.streams];
+
+    const cacheKey = cache.generateKey({ instanceId: inst.id, streams: [...streamNames].sort() });
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
 
     const entries = await Promise.all(
       streamNames.map(async (stream): Promise<StreamSchemaEntry> => {
@@ -43,10 +34,13 @@ export function createGetStreamSchemaHandler(pool: InstancePool) {
       }),
     );
 
-    return {
+    const result: GetStreamSchemaResult = {
       instanceId: inst.id,
       instanceName: inst.name,
       schemas: entries,
     };
+
+    cache.set(cacheKey, result);
+    return result;
   };
 }

@@ -12,7 +12,13 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "paths": {
+      "$types": ["./src/types/index.ts"],
+      "$types/*": ["./src/types/*"],
+      "$schema": ["./src/config/schema.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

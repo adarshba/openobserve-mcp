@@ -118,4 +118,26 @@ function createTracing() {
   return { initTracing, shutdownTracing, withTracing };
 }
 
-export const { initTracing, shutdownTracing, withTracing } = createTracing();
+const tracing = createTracing();
+
+/**
+ * Initialise the Langfuse tracing client if the `LANGFUSE_O2_ENABLED` environment variable is `"true"`.
+ */
+export const initTracing: () => void = tracing.initTracing;
+
+/**
+ * Flush pending Langfuse events and shut down the tracing client gracefully.
+ * @returns A promise that resolves when the client has been shut down.
+ */
+export const shutdownTracing: () => Promise<void> = tracing.shutdownTracing;
+
+/**
+ * Wrap an async tool handler with Langfuse trace and span instrumentation.
+ * @param toolName - Name used to label the trace and span in Langfuse.
+ * @param handler - The async tool handler to instrument.
+ * @returns A new async function with the same signature that emits tracing data when a client is active.
+ */
+export const withTracing: <TArgs, TResult>(
+  toolName: string,
+  handler: (args: TArgs) => Promise<TResult>,
+) => (args: TArgs) => Promise<TResult> = tracing.withTracing;

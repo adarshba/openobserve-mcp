@@ -1,5 +1,5 @@
 import type { O2Instance } from "../client/instance.js";
-import type { Granularity } from "./types.js";
+import type { Granularity } from "$types";
 import { ERROR_LEVEL_RE } from "./analyzer.js";
 
 const FROM_RE = /\bfrom\b/i;
@@ -11,6 +11,15 @@ const FROM_TABLE_RE = /\bfrom\s+[`"]?(\w+)[`"]?/i;
 
 const LEVEL_FIELD_CANDIDATES = ["level", "severity", "log_level"];
 
+/**
+ * Rewrite a raw SQL query into a time-bucketed aggregate query.
+ * @param sql - Original SQL string to rewrite; must contain a FROM clause.
+ * @param granularity - Bucket size for the histogram: `"hour"` or `"day"`.
+ * @param instance - O2Instance used to resolve level field names when not present in the SQL.
+ * @param org - Organisation slug forwarded to field-schema lookups; falls back to instance default.
+ * @returns Rewritten SQL string with histogram, COUNT, and error_count columns.
+ * @throws When the input SQL contains no FROM clause.
+ */
 export async function rewriteToAggregate(
   sql: string,
   granularity: Granularity,

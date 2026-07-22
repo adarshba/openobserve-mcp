@@ -1,32 +1,13 @@
-import { z } from "zod";
+import type { z } from "zod";
 import type { InstancePool } from "../client/pool.js";
-import type { QueryCache } from "../cache.js";
-import type { PaginationCursor } from "../types.js";
+import type { PaginationCursor, SearchLogsResult, InstanceQueryResult } from "$types";
+import { SearchLogsInputSchema } from "$schema";
 import { selectStrategy } from "../query/router.js";
 import { runAggregateStrategy } from "../query/strategies/aggregate.js";
 import { runSampleStrategy } from "../query/strategies/sample.js";
 import { runRawStrategy } from "../query/strategies/raw.js";
-import type { InstanceQueryResult } from "../query/types.js";
+import type { QueryCache } from "../cache.js";
 import { parseTime } from "../utils/time.js";
-
-export const SearchLogsInputSchema = z.object({
-  instances: z.array(z.string()).min(1).describe("Instance IDs to query"),
-  sql: z.string().describe("SQL query to execute"),
-  startTime: z.string().describe("Start time (ISO 8601 or Unix ms)"),
-  endTime: z.string().describe("End time (ISO 8601 or Unix ms)"),
-  limit: z.number().optional().default(100).describe("Results per instance (applies to raw strategy only)"),
-  cursor: z.string().optional().describe("Pagination cursor from previous response"),
-  bypassCache: z.boolean().optional().default(false).describe("Skip cache lookup"),
-});
-
-export type SearchLogsInput = z.infer<typeof SearchLogsInputSchema>;
-
-export type SearchLogsResult = {
-  strategy: string;
-  results: InstanceQueryResult[];
-  cursor?: string;
-  hasMore: boolean;
-};
 
 function encodeCursor(cursor: PaginationCursor): string {
   return Buffer.from(JSON.stringify(cursor)).toString("base64");
@@ -36,8 +17,14 @@ function decodeCursor(encoded: string): PaginationCursor {
   return JSON.parse(Buffer.from(encoded, "base64").toString("utf-8"));
 }
 
+/**
+ * Create a handler that searches logs across instances using an automatically selected strategy.
+ * @param pool - Instance pool used to resolve target instances by ID.
+ * @param cache - Cache for storing and retrieving `SearchLogsResult` objects.
+ * @returns An async handler that accepts a search-logs input and returns aggregated query results.
+ */
 export function createSearchLogsHandler(pool: InstancePool, cache: QueryCache<SearchLogsResult>) {
-  return async (input: SearchLogsInput): Promise<SearchLogsResult> => {
+  return async (input: z.infer<typeof SearchLogsInputSchema>): Promise<SearchLogsResult> => {
     const startTime = parseTime(input.startTime);
     const endTime = parseTime(input.endTime);
     const limit = input.limit ?? 100;
@@ -82,17 +69,17 @@ export function createSearchLogsHandler(pool: InstancePool, cache: QueryCache<Se
           return runSampleStrategy(inst, input.sql, startTime, endTime, intent.strategy);
         case "raw":
         case "passthrough":
-          return runRawStrategy(inst, input.sql, startTime, endTime, from, limit);
+          return runRawStrategy(inst, input.sql, startTime, endTime, from, limit, input.trackTotalHits ?? false);
       }
     });
 
     const settled = await Promise.allSettled(queries);
-    const results: InstanceQueryResult[] = settled.map((s) =>
+    const results: InstanceQueryResult[] = settled.map((s, i) =>
       s.status === "fulfilled"
         ? s.value
         : {
-            instanceId: "unknown",
-            instanceName: "unknown",
+            instanceId: instances[i].id,
+            instanceName: instances[i].name,
             success: false,
             error: String(s.reason),
           },

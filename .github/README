@@ -2,8 +2,8 @@ OpenObserve MCP Server
 ======================
 
 A Model Context Protocol (MCP) server for querying multiple OpenObserve
-instances. Parallel queries, batch execution, pagination, and LRU caching
-over a stdio transport.
+instances. Adaptive query strategies, batch execution, cursor pagination,
+and LRU caching over a stdio transport.
 
 Source: https://github.com/adarshba/openobserve-mcp
 
@@ -11,9 +11,10 @@ Source: https://github.com/adarshba/openobserve-mcp
 What is this?
 -------------
 
-This server exposes OpenObserve log/trace/metrics querying as MCP tools.
-An AI agent (Claude, Cursor, etc.) connects to this server over stdio and
-can call tools to fetch logs from one or many OpenObserve instances at once.
+Exposes OpenObserve log, trace, and metrics querying as MCP tools. An AI
+agent (Claude, Cursor, OpenCode, etc.) connects over stdio and calls tools
+to search logs, inspect stream schemas, and fetch contextual records across
+one or many OpenObserve instances simultaneously.
 
 
 Quick Start
@@ -22,7 +23,7 @@ Quick Start
   npm install
   npm run build
 
-  export PROD_GCP_O2_TOKEN=$(echo -n "user@example.com:password" | base64)
+  export PROD_O2_TOKEN=$(echo -n "user@example.com:password" | base64)
   node dist/index.js --config ./config/openobserve.config.json
 
 
@@ -31,18 +32,18 @@ Configuration
 
 Edit config/openobserve.config.json. Each instance entry requires:
 
-  id         - unique identifier used to reference the instance in tool calls
-  name       - human-readable label
-  url        - base URL of the OpenObserve instance
-  auth       - references an environment variable holding a Base64 token
-  defaults   - org, timeout, maxResults
-  capabilities - which of: logs, traces, metrics
-  tags       - arbitrary labels for filtering (e.g. production, staging, gcp)
+  id           - unique identifier used in tool calls
+  name         - human-readable label
+  url          - base URL of the OpenObserve instance
+  auth         - references an environment variable holding a Base64 token
+  defaults     - org, timeout, maxResults
+  capabilities - subset of: logs, traces, metrics
+  tags         - arbitrary labels for filtering (e.g. production, staging, gcp)
 
 Top-level options:
 
-  batching.maxBatchSize   - max queries per parallel batch (default: 100)
-  batching.maxConcurrent  - max concurrent instance connections (default: 5)
+  batching.maxConcurrent  - max concurrent queries (default: 5)
+  batching.maxBatchSize   - max queries per batch (default: 100)
   caching.enabled         - enable LRU query cache (default: true)
   caching.ttl             - cache TTL in seconds (default: 300)
   caching.maxSize         - max cached entries (default: 1000)
@@ -54,81 +55,95 @@ Auth Token
 Each instance authenticates with a Base64-encoded "username:password" string
 passed via environment variable. Never put credentials directly in the config.
 
-  export PROD_GCP_O2_TOKEN=$(echo -n "admin@example.com:secretpass" | base64)
-
-For API key auth:
-
-  export PROD_GCP_O2_TOKEN=$(echo -n "api_key_id:api_key_secret" | base64)
+  export PROD_O2_TOKEN=$(echo -n "admin@example.com:secretpass" | base64)
 
 The config references the env var name:
 
-  "auth": { "type": "env", "envVar": "PROD_GCP_O2_TOKEN" }
+  "auth": { "type": "env", "envVar": "PROD_O2_TOKEN" }
+
+Config path can also be provided via environment variable:
+
+  O2_MCP_CONFIG_PATH=./config/openobserve.config.json npx openobserve-mcp
+
+Or pass the full config JSON inline:
+
+  O2_MCP_CONFIG='{"instances":[...]}' npx openobserve-mcp
 
 
 MCP Client Setup
 ----------------
 
-Add to your MCP client config (Claude Desktop, Cursor, OpenCode, Claude Code CLI, etc.):
+Add to your MCP client config (Claude Desktop, Cursor, OpenCode, etc.):
 
   {
     "mcpServers": {
       "openobserve": {
         "command": "npx",
-        "args": [
-          "openobserve-mcp",
-          "--config",
-          "/path/to/config.json"
-        ],
+        "args": ["openobserve-mcp", "--config", "/path/to/config.json"],
         "env": {
-          "PROD_GCP_O2_TOKEN": "your_base64_token",
-          "PROD_AWS_O2_TOKEN": "your_base64_token"
+          "PROD_O2_TOKEN": "your_base64_token"
         }
       }
     }
   }
 
-Config path can also be set via environment variable:
-
-  O2_MCP_CONFIG_PATH=./config/openobserve.config.json npx openobserve-mcp
-
 
 Tools
 -----
 
-o2_search_logs
-  Search logs with SQL across one or more instances. Queries run in parallel.
-  Results include instance attribution and a pagination cursor if more data
-  exists.
+search_logs
+  Search logs with SQL across one or more instances. Automatically selects
+  the most efficient strategy based on time range:
+    ≤1 h      raw fetch (capped at 200 rows, paginated)
+    1–6 h     reservoir sampling (recent, diverse, or error-biased)
+    6 h–7 d   hourly histogram aggregation
+    >7 d      daily histogram aggregation
 
-  instances    (required) array of instance IDs to query
-  sql          (required) SQL query string
-  startTime    (required) ISO 8601 or Unix ms timestamp
-  endTime      (required) ISO 8601 or Unix ms timestamp
-  limit        results per instance, default 100
-  cursor       pagination cursor from a previous response
-  bypassCache  skip cache and fetch fresh data
+  instances       (required) array of instance IDs
+  sql             (required) SQL query string
+  startTime       (required) ISO 8601 or Unix ms
+  endTime         (required) ISO 8601 or Unix ms
+  limit           results per instance (raw strategy only), default 100
+  trackTotalHits  compute exact total count, slower on large streams
+  cursor          pagination cursor from a previous response
+  bypassCache     skip cache and force fresh fetch
 
-o2_batch_query
-  Execute multiple independent queries in parallel, chunked by maxBatchSize.
-  Each query targets a specific instance. Partial failures are isolated --
-  a failed query does not block others.
+batch_query
+  Execute multiple independent SQL queries in parallel. Each query targets
+  a specific instance. Partial failures are isolated.
 
-  queries[].instanceId   (required) target instance ID
-  queries[].sql          (required) SQL query
-  queries[].startTime    (required) start time
-  queries[].endTime      (required) end time
-  queries[].limit        result limit, default 100
+  queries[].instanceId  (required) target instance ID
+  queries[].sql         (required) SQL query
+  queries[].startTime   (required) start time
+  queries[].endTime     (required) end time
+  queries[].limit       result limit, default 100
 
-o2_list_instances
+list_instances
   List all configured instances. Optionally filter by tag or capability.
 
-  tags         filter by any matching tag
-  capability   filter by capability: logs, traces, or metrics
+  tags        filter by any matching tag
+  capability  filter by capability: logs, traces, or metrics
 
-o2_list_streams
-  List available streams/indexes from one or more instances in parallel.
+list_streams
+  List available streams from one or more instances in parallel.
 
-  instances    (required) array of instance IDs to query
+  instances  (required) array of instance IDs
+
+get_stream_schema
+  Return field names and types for one or more streams. Results are cached
+  for 10 minutes.
+
+  instance  (required) instance ID
+  streams   (required) stream name or array of stream names
+
+get_logs_around
+  Fetch log records surrounding a specific timestamp without writing SQL.
+  Useful for viewing context around a known event.
+
+  instance   (required) instance ID
+  stream     (required) stream name
+  timestamp  (required) anchor timestamp (ISO 8601 or Unix ms)
+  size       total records to return, default 20
 
 
 SQL Reference
@@ -136,50 +151,68 @@ SQL Reference
 
 OpenObserve uses a PostgreSQL-compatible SQL dialect.
 
-  _timestamp         built-in time field (microseconds); always present
-  match_all('x')     full-text search across all fields
-  str_match(f, 'x')  text match on a specific field
-  histogram(_timestamp, '5 minute')  time-bucketed aggregation
+  _timestamp              built-in time field; always present
+  match_all('text')       full-text search across indexed fields (wildcard: *)
+  str_match(field, 'x')   text match on a specific field
+  histogram(_timestamp, '1 hour')  time-bucketed aggregation
 
-Time range is always enforced via startTime/endTime. Always provide both.
+Do not add WHERE _timestamp filters — time range is controlled by
+startTime and endTime parameters.
 
 Examples:
 
-  SELECT * FROM default WHERE level = 'error' ORDER BY _timestamp DESC
+  SELECT * FROM "mystream" WHERE level = 'error'
 
-  SELECT * FROM default WHERE match_all('payment failed')
+  SELECT * FROM "mystream" WHERE match_all('payment failed*')
 
   SELECT service, COUNT(*) AS errors
-  FROM default WHERE level = 'error'
+  FROM "mystream" WHERE level = 'error'
   GROUP BY service ORDER BY errors DESC
 
-  SELECT histogram(_timestamp, '5 minute') AS bucket, COUNT(*) AS count
-  FROM default GROUP BY bucket ORDER BY bucket
+  SELECT histogram(_timestamp, '1 hour') AS ts, COUNT(*) AS count
+  FROM "mystream" GROUP BY ts ORDER BY ts
 
 
 Project Layout
 --------------
 
-  src/index.ts                     entry point, CLI arg parsing, stdio transport
-  src/server.ts                    MCP server, tool registration, request routing
-  src/cache.ts                     LRU cache with TTL and hash-based keys
-  src/types.ts                     shared type definitions
-  src/config/schema.ts             Zod schema for config validation
-  src/config/loader.ts             config loader, env var resolution
-  src/client/instance.ts           HTTP client for a single OpenObserve instance
-  src/client/pool.ts               manages the set of all configured instances
-  src/query/types.ts               query result and strategy type definitions
-  src/query/analyzer.ts            SQL intent detection (aggregates, GROUP BY, errors)
-  src/query/rewriter.ts            rewrites SELECT * to histogram aggregation SQL
-  src/query/sampler.ts             reservoir sampling (recent, diverse, errors modes)
-  src/query/router.ts              selects strategy based on time range and SQL intent
-  src/query/strategies/aggregate.ts  aggregate strategy: time-bucketed counts + drill-down
-  src/query/strategies/sample.ts     sample strategy: reservoir-sampled rows
-  src/query/strategies/raw.ts        raw strategy: passthrough capped at 200 rows
-  src/tools/search-logs.ts         o2_search_logs implementation
-  src/tools/batch-query.ts         o2_batch_query implementation
-  src/tools/list-instances.ts      o2_list_instances implementation
-  src/tools/list-streams.ts        o2_list_streams implementation
+  src/index.ts                        entry point, CLI arg parsing, stdio transport
+  src/server.ts                       MCP server, tool registration, response serialization
+  src/cache.ts                        LRU cache with TTL and SHA-256 key generation
+  src/tracing.ts                      optional Langfuse tracing wrapper
+  src/config/schema.ts                Zod schemas for config, API responses, and tool inputs
+  src/config/loader.ts                config loader and environment variable resolution
+  src/client/instance.ts              HTTP client for a single OpenObserve instance
+  src/client/pool.ts                  manages the set of all configured instances
+  src/types/config.ts                 server and instance configuration types
+  src/types/query.ts                  query, result, and strategy types
+  src/types/tools.ts                  tool result types
+  src/types/index.ts                  barrel export for all types
+  src/query/analyzer.ts               SQL intent detection (aggregates, error filters)
+  src/query/rewriter.ts               rewrites SELECT queries to histogram aggregation SQL
+  src/query/sampler.ts                reservoir sampling (recent, diverse, errors modes)
+  src/query/router.ts                 selects query strategy from time range and SQL intent
+  src/query/strategies/aggregate.ts   time-bucketed count strategy
+  src/query/strategies/sample.ts      reservoir-sampled rows strategy
+  src/query/strategies/raw.ts         passthrough strategy capped at 200 rows
+  src/tools/search-logs.ts            search_logs handler
+  src/tools/batch-query.ts            batch_query handler
+  src/tools/list-instances.ts         list_instances handler
+  src/tools/list-streams.ts           list_streams handler
+  src/tools/get-stream-schema.ts      get_stream_schema handler
+  src/tools/get-logs-around.ts        get_logs_around handler
+  src/utils/time.ts                   timestamp parsing utility
+
+
+Optional: Langfuse Tracing
+--------------------------
+
+Set these environment variables to emit traces to Langfuse:
+
+  LANGFUSE_O2_ENABLED     set to "true" to enable
+  LANGFUSE_O2_PUBLIC_KEY  Langfuse project public key
+  LANGFUSE_O2_SECRET_KEY  Langfuse project secret key
+  LANGFUSE_O2_BASE_URL    Langfuse host (default: https://cloud.langfuse.com)
 
 
 License

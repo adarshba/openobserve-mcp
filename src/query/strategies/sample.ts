@@ -1,10 +1,19 @@
 import type { O2Instance } from "../../client/instance.js";
 import { reservoirSample } from "../sampler.js";
-import type { SampleStrategy, InstanceQueryResult } from "../types.js";
+import type { SampleStrategy, InstanceQueryResult } from "$types";
 
 const FETCH_SIZE = 1000;
 const SAMPLE_SIZE = 50;
 
+/**
+ * Fetch a large batch of log entries and down-sample them using reservoir sampling.
+ * @param instance - Target instance to query.
+ * @param sql - SQL query string to execute for the initial fetch.
+ * @param startTime - Query start time in milliseconds since epoch.
+ * @param endTime - Query end time in milliseconds since epoch.
+ * @param strategy - Sampling algorithm applied to the fetched entries.
+ * @returns An `InstanceQueryResult` with a samples view on success, or an error description on failure.
+ */
 export async function runSampleStrategy(
   instance: O2Instance,
   sql: string,

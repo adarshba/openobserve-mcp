@@ -1,24 +1,16 @@
-import { z } from "zod";
+import type { z } from "zod";
 import type { InstancePool } from "../client/pool.js";
-import type { StreamInfo } from "../types.js";
+import type { InstanceStreamsResult } from "$types";
+import { ListStreamsInputSchema } from "$schema";
 
-export const ListStreamsInputSchema = z.object({
-  instances: z.array(z.string()).min(1).describe("Instance IDs to query"),
-});
-
-export type ListStreamsInput = z.infer<typeof ListStreamsInputSchema>;
-
-interface InstanceStreamsResult {
-  instanceId: string;
-  instanceName: string;
-  success: boolean;
-  streams?: StreamInfo[];
-  error?: string;
-}
-
+/**
+ * Create a handler that lists all streams available on the specified instances in parallel.
+ * @param pool - Instance pool used to resolve target instances by ID.
+ * @returns An async handler that accepts a list-streams input and returns per-instance stream listings.
+ */
 export function createListStreamsHandler(pool: InstancePool) {
   return async (
-    input: ListStreamsInput,
+    input: z.infer<typeof ListStreamsInputSchema>,
   ): Promise<{ results: InstanceStreamsResult[] }> => {
     const instances = pool.getByIds(input.instances);
 
@@ -26,33 +18,18 @@ export function createListStreamsHandler(pool: InstancePool) {
       async (inst): Promise<InstanceStreamsResult> => {
         try {
           const streams = await inst.listStreams();
-          return {
-            instanceId: inst.id,
-            instanceName: inst.name,
-            success: true,
-            streams,
-          };
+          return { instanceId: inst.id, instanceName: inst.name, success: true, streams };
         } catch (err) {
-          return {
-            instanceId: inst.id,
-            instanceName: inst.name,
-            success: false,
-            error: String(err),
-          };
+          return { instanceId: inst.id, instanceName: inst.name, success: false, error: String(err) };
         }
       },
     );
 
     const settled = await Promise.allSettled(queries);
-    const results: InstanceStreamsResult[] = settled.map((s) =>
+    const results: InstanceStreamsResult[] = settled.map((s, i) =>
       s.status === "fulfilled"
         ? s.value
-        : {
-            instanceId: "unknown",
-            instanceName: "unknown",
-            success: false,
-            error: String(s.reason),
-          },
+        : { instanceId: instances[i].id, instanceName: instances[i].name, success: false, error: String(s.reason) },
     );
 
     return { results };

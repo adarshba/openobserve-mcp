@@ -1,16 +1,7 @@
-import { z } from "zod";
+import type { z } from "zod";
 import type { InstancePool } from "../client/pool.js";
 import type { O2Instance } from "../client/instance.js";
-
-export const ListInstancesInputSchema = z.object({
-  tags: z.array(z.string()).optional().describe("Filter by tags"),
-  capability: z
-    .string()
-    .optional()
-    .describe("Filter by capability (logs, traces, metrics)"),
-});
-
-export type ListInstancesInput = z.infer<typeof ListInstancesInputSchema>;
+import { ListInstancesInputSchema } from "$schema";
 
 function toMetadata(inst: O2Instance) {
   return {
@@ -22,8 +13,13 @@ function toMetadata(inst: O2Instance) {
   };
 }
 
+/**
+ * Create a handler that lists configured OpenObserve instances with optional tag and capability filters.
+ * @param pool - Instance pool to query for registered instances.
+ * @returns An async handler that accepts a list-instances input and returns filtered instance metadata.
+ */
 export function createListInstancesHandler(pool: InstancePool) {
-  return async (input: ListInstancesInput) => {
+  return async (input: z.infer<typeof ListInstancesInputSchema>) => {
     let instances =
       input.tags && input.tags.length > 0
         ? pool.getByTags(input.tags)
